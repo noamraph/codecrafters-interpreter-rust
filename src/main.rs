@@ -91,7 +91,6 @@ fn scan_token<I: Iterator<Item = char>>(
             '-' => Some(Minus),
             '+' => Some(Plus),
             ';' => Some(Semicolon),
-            '/' => Some(Slash),
             '*' => Some(Star),
 
             '!' | '=' | '>' | '<' => {
@@ -112,6 +111,20 @@ fn scan_token<I: Iterator<Item = char>>(
                         '<' => Some(Less),
                         _ => unreachable!(),
                     }
+                }
+            }
+
+            '/' => {
+                if is_match(iter, '/') {
+                    loop {
+                        let next = iter.next();
+                        if next == Some('\n') || next.is_none() {
+                            break;
+                        }
+                    }
+                    None
+                } else {
+                    Some(Slash)
                 }
             }
 
