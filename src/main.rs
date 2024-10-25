@@ -32,11 +32,12 @@ fn cmd_parse(filename: &str) -> ExitCode {
     }
     if tokens.len() == 2 {
         assert!(tokens[1].token_type == TokenType::Eof);
-        let s: String = match tokens[0].token_type {
+        let s: String = match &tokens[0].token_type {
             TokenType::True => "true".into(),
             TokenType::False => "false".into(),
             TokenType::Nil => "nil".into(),
             TokenType::Number(f) => format!("{:?}", f),
+            TokenType::StringLiteral(s) => s.clone(),
             _ => todo!(),
         };
         println!("{}", s);
