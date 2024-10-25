@@ -27,14 +27,54 @@ enum TokenType {
     LessEqual,
 
     // Literals
-    Identifier(String),
+    Identifier(#[allow(unused)] String),
     StringLiteral(String),
     Number(f64),
+
+    // Keywords
+    And,
+    Class,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
 
     Eof,
 }
 
 use TokenType::*;
+
+fn get_keyword(name: &str) -> Option<TokenType> {
+    match name {
+        "and" => Some(And),
+        "class" => Some(Class),
+        "else" => Some(Else),
+        "false" => Some(False),
+        "fun" => Some(Fun),
+        "for" => Some(For),
+        "if" => Some(If),
+        "nil" => Some(Nil),
+        "or" => Some(Or),
+        "print" => Some(Print),
+        "return" => Some(Return),
+        "super" => Some(Super),
+        "this" => Some(This),
+        "true" => Some(True),
+        "var" => Some(Var),
+        "while" => Some(While),
+        _ => None,
+    }
+}
 
 impl TokenType {
     fn name(&self) -> &'static str {
@@ -63,6 +103,23 @@ impl TokenType {
             Identifier(_) => "IDENTIFIER",
             StringLiteral(_) => "STRING",
             Number(_) => "NUMBER",
+
+            And => "AND",
+            Class => "CLASS",
+            Else => "ELSE",
+            False => "FALSE",
+            Fun => "FUN",
+            For => "FOR",
+            If => "IF",
+            Nil => "NIL",
+            Or => "OR",
+            Print => "PRINT",
+            Return => "RETURN",
+            Super => "SUPER",
+            This => "THIS",
+            True => "TRUE",
+            Var => "VAR",
+            While => "WHILE",
 
             Eof => "EOF",
         }
@@ -231,6 +288,21 @@ fn scan_token(scanner: &mut Scanner) -> Option<Token> {
                     .parse::<f64>()
                     .unwrap(),
             )
+        }
+
+        '_' | 'a'..='z' | 'A'..='Z' => {
+            while scanner
+                .peek()
+                .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+            {
+                scanner.advance();
+            }
+            let value = scanner.substr(start, scanner.current);
+            if let Some(kw) = get_keyword(&value) {
+                kw
+            } else {
+                Identifier(value)
+            }
         }
 
         _ => {
