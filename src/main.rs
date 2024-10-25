@@ -2,6 +2,7 @@ use std::env;
 use std::fs;
 use std::process::ExitCode;
 
+#[derive(PartialEq)]
 enum TokenType {
     // Single-character tokens
     LeftParen,
@@ -27,7 +28,7 @@ enum TokenType {
     LessEqual,
 
     // Literals
-    Identifier(#[allow(unused)] String),
+    Identifier,
     StringLiteral(String),
     Number(f64),
 
@@ -100,7 +101,7 @@ impl TokenType {
             Less => "LESS",
             LessEqual => "LESS_EQUAL",
 
-            Identifier(_) => "IDENTIFIER",
+            Identifier => "IDENTIFIER",
             StringLiteral(_) => "STRING",
             Number(_) => "NUMBER",
 
@@ -297,11 +298,10 @@ fn scan_token(scanner: &mut Scanner) -> Option<Token> {
             {
                 scanner.advance();
             }
-            let value = scanner.substr(start, scanner.current);
-            if let Some(kw) = get_keyword(&value) {
+            if let Some(kw) = get_keyword(&scanner.substr(start, scanner.current)) {
                 kw
             } else {
-                Identifier(value)
+                Identifier
             }
         }
 
