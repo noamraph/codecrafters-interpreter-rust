@@ -75,13 +75,18 @@ fn is_match<I: Iterator<Item = char>>(iter: &mut Peekable<I>, c: char) -> bool {
 
 fn scan_token<I: Iterator<Item = char>>(
     iter: &mut Peekable<I>,
+    line: &mut usize,
     had_error: &mut bool,
 ) -> Option<Token> {
     loop {
         let c = iter.next()?;
         let mut lexeme = c.to_string();
         let maybe_token = match c {
-            ' ' | '\n' | '\t' => None,
+            ' ' | '\t' => None,
+            '\n' => {
+                *line += 1;
+                None
+            }
             '(' => Some(LeftParen),
             ')' => Some(RightParen),
             '{' => Some(LeftBrace),
@@ -117,9 +122,13 @@ fn scan_token<I: Iterator<Item = char>>(
             '/' => {
                 if is_match(iter, '/') {
                     loop {
-                        let next = iter.next();
-                        if next == Some('\n') || next.is_none() {
-                            break;
+                        match iter.next() {
+                            Some('\n') => {
+                                *line += 1;
+                                break;
+                            }
+                            None => break,
+                            _ => (),
                         }
                     }
                     None
@@ -129,7 +138,7 @@ fn scan_token<I: Iterator<Item = char>>(
             }
 
             _ => {
-                eprintln!("[line 1] Error: Unexpected character: {}", c);
+                eprintln!("[line {}] Error: Unexpected character: {}", line, c);
                 *had_error = true;
                 None
             }
@@ -141,10 +150,11 @@ fn scan_token<I: Iterator<Item = char>>(
 }
 
 fn tokenize(contents: &str) -> (Vec<Token>, bool) {
+    let mut line = 1;
     let mut had_error = false;
     let mut tokens = Vec::<Token>::new();
     let mut iter = contents.chars().peekable();
-    while let Some(token) = scan_token(&mut iter, &mut had_error) {
+    while let Some(token) = scan_token(&mut iter, &mut line, &mut had_error) {
         tokens.push(token);
     }
     tokens.push(Token {
