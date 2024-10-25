@@ -1,6 +1,5 @@
 use std::env;
 use std::fs;
-use std::iter::Peekable;
 use std::process::ExitCode;
 
 enum TokenType {
@@ -30,7 +29,7 @@ enum TokenType {
     // Literals
     Identifier(String),
     StringLiteral(String),
-    Number(String),
+    Number(f64),
 
     Eof,
 }
@@ -72,6 +71,7 @@ impl TokenType {
     fn literal_str(&self) -> String {
         match self {
             StringLiteral(s) => s.clone(),
+            Number(f) => format!("{:?}", f),
             _ => "null".into(),
         }
     }
@@ -82,33 +82,78 @@ struct Token {
     lexeme: String,
 }
 
-fn is_match<I: Iterator<Item = char>>(iter: &mut Peekable<I>, c: char) -> bool {
-    if iter.peek() == Some(&c) {
-        iter.next();
-        true
-    } else {
-        false
+struct Scanner {
+    source: Vec<char>,
+    current: usize,
+    line: usize,
+    had_error: bool,
+}
+
+impl Scanner {
+    fn new(source: &str) -> Self {
+        Scanner {
+            source: source.chars().collect(),
+            current: 0,
+            line: 1,
+            had_error: false,
+        }
+    }
+
+    fn has_more(&self) -> bool {
+        self.current < self.source.len()
+    }
+
+    /// This should only be called if you know there's a next char
+    fn advance(&mut self) -> char {
+        assert!(self.has_more());
+        let c = self.source[self.current];
+        self.current += 1;
+        if c == '\n' {
+            self.line += 1;
+        }
+        c
+    }
+
+    fn peek(&self) -> Option<char> {
+        if self.has_more() {
+            Some(self.source[self.current])
+        } else {
+            None
+        }
+    }
+
+    fn peek_next(&self) -> Option<char> {
+        if self.current + 1 < self.source.len() {
+            Some(self.source[self.current + 1])
+        } else {
+            None
+        }
+    }
+
+    fn is_match(&mut self, c: char) -> bool {
+        let is_match = self.peek() == Some(c);
+        if is_match {
+            self.advance();
+        }
+        is_match
+    }
+
+    fn error(&mut self, msg: &str) {
+        eprintln!("[line {}] Error: {}", self.line, msg);
+        self.had_error = true;
+    }
+
+    fn substr(&self, start: usize, end: usize) -> String {
+        self.source[start..end].iter().collect()
     }
 }
 
-fn error(line: usize, had_error: &mut bool, msg: &str) {
-    eprintln!("[line {}] Error: {}", line, msg);
-    *had_error = true;
-}
-
-fn scan_token<I: Iterator<Item = char>>(
-    iter: &mut Peekable<I>,
-    line: &mut usize,
-    had_error: &mut bool,
-) -> Option<Token> {
-    let c = iter.next()?;
-    let mut lexeme = c.to_string();
+/// Consume at least one char. Return a Token if consumed a token.
+fn scan_token(scanner: &mut Scanner) -> Option<Token> {
+    let start = scanner.current;
+    let c = scanner.advance();
     let token_type = match c {
-        ' ' | '\t' => return None,
-        '\n' => {
-            *line += 1;
-            return None;
-        }
+        ' ' | '\t' | '\n' => return None,
         '(' => LeftParen,
         ')' => RightParen,
         '{' => LeftBrace,
@@ -121,8 +166,7 @@ fn scan_token<I: Iterator<Item = char>>(
         '*' => Star,
 
         '!' | '=' | '>' | '<' => {
-            if is_match(iter, '=') {
-                lexeme.push('=');
+            if scanner.is_match('=') {
                 match c {
                     '!' => BangEqual,
                     '=' => EqualEqual,
@@ -142,15 +186,11 @@ fn scan_token<I: Iterator<Item = char>>(
         }
 
         '/' => {
-            if is_match(iter, '/') {
-                loop {
-                    match iter.next() {
-                        Some('\n') => {
-                            *line += 1;
-                            break;
-                        }
-                        None => break,
-                        _ => (),
+            if scanner.is_match('/') {
+                while scanner.has_more() {
+                    let c = scanner.advance();
+                    if c == '\n' {
+                        break;
                     }
                 }
                 return None;
@@ -160,39 +200,53 @@ fn scan_token<I: Iterator<Item = char>>(
         }
 
         '"' => {
-            let mut value = String::new();
             loop {
-                let Some(c) = iter.next() else {
-                    error(*line, had_error, "Unterminated string.");
+                if !scanner.has_more() {
+                    scanner.error("Unterminated string.");
                     return None;
-                };
-                lexeme.push(c);
-                if c == '\n' {
-                    *line += 1;
                 }
+                let c = scanner.advance();
                 if c == '"' {
                     break;
                 }
-                value.push(c);
             }
-            StringLiteral(value)
+            StringLiteral(scanner.substr(start + 1, scanner.current - 1))
+        }
+
+        '0'..='9' => {
+            while scanner.peek().is_some_and(|c| c.is_ascii_digit()) {
+                scanner.advance();
+            }
+            if scanner.peek() == Some('.')
+                && scanner.peek_next().is_some_and(|c| c.is_ascii_digit())
+            {
+                scanner.advance();
+            }
+            while scanner.peek().is_some_and(|c| c.is_ascii_digit()) {
+                scanner.advance();
+            }
+            Number(
+                scanner
+                    .substr(start, scanner.current)
+                    .parse::<f64>()
+                    .unwrap(),
+            )
         }
 
         _ => {
-            error(*line, had_error, &format!("Unexpected character: {}", c));
+            scanner.error(&format!("Unexpected character: {}", c));
             return None;
         }
     };
+    let lexeme = scanner.substr(start, scanner.current);
     Some(Token { token_type, lexeme })
 }
 
 fn tokenize(contents: &str) -> (Vec<Token>, bool) {
-    let mut line = 1;
-    let mut had_error = false;
     let mut tokens = Vec::<Token>::new();
-    let mut iter = contents.chars().peekable();
-    while iter.peek().is_some() {
-        if let Some(token) = scan_token(&mut iter, &mut line, &mut had_error) {
+    let mut scanner = Scanner::new(contents);
+    while scanner.has_more() {
+        if let Some(token) = scan_token(&mut scanner) {
             tokens.push(token);
         }
     }
@@ -200,7 +254,7 @@ fn tokenize(contents: &str) -> (Vec<Token>, bool) {
         token_type: Eof,
         lexeme: "".into(),
     });
-    (tokens, had_error)
+    (tokens, scanner.had_error)
 }
 
 fn cmd_tokenize(filename: &str) -> ExitCode {
