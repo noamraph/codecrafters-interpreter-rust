@@ -1,8 +1,9 @@
 use std::env;
 use std::fs;
+use std::iter::Peekable;
 use std::process::ExitCode;
 
-enum Token {
+enum TokenType {
     // Single-character tokens
     LeftParen,
     RightParen,
@@ -16,12 +17,22 @@ enum Token {
     Slash,
     Star,
 
+    // One or two character tokens
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+
     Eof,
 }
 
-use Token::*;
+use TokenType::*;
 
-fn token_type_name(token: Token) -> &'static str {
+fn token_type_name(token: TokenType) -> &'static str {
     match token {
         LeftParen => "LEFT_PAREN",
         RightParen => "RIGHT_PAREN",
@@ -34,55 +45,83 @@ fn token_type_name(token: Token) -> &'static str {
         Semicolon => "SEMICOLON",
         Slash => "SLASH",
         Star => "STAR",
+
+        Bang => "BANG",
+        BangEqual => "BANG_EQUAL",
+        Equal => "EQUAL",
+        EqualEqual => "EQUAL_EQUAL",
+        Greater => "GREATER",
+        GreaterEqual => "GREATER_EQUAL",
+        Less => "LESS",
+        LessEqual => "LESS_EQUAL",
+
         Eof => "EOF",
     }
 }
 
-fn tokenize(contents: &str) -> Vec<(Result<Token, char>, usize, usize)> {
-    let mut r = Vec::<(Result<Token, char>, usize, usize)>::new();
-    for (i, char) in contents.chars().enumerate() {
-        if char == ' ' || char == '\n' || char == '\t' {
-            continue;
-        }
-        let token = match char {
-            '(' => Ok(LeftParen),
-            ')' => Ok(RightParen),
-            '{' => Ok(LeftBrace),
-            '}' => Ok(RightBrace),
-            ',' => Ok(Comma),
-            '.' => Ok(Dot),
-            '-' => Ok(Minus),
-            '+' => Ok(Plus),
-            ';' => Ok(Semicolon),
-            '/' => Ok(Slash),
-            '*' => Ok(Star),
+struct Token {
+    token_type: TokenType,
+    lexeme: String,
+}
 
-            _ => Err(char),
+fn scan_token<I: Iterator<Item = char>>(
+    iter: &mut Peekable<I>,
+    had_error: &mut bool,
+) -> Option<Token> {
+    loop {
+        let c = iter.next()?;
+        let maybe_token = match c {
+            ' ' | '\n' | '\t' => None,
+            '(' => Some(LeftParen),
+            ')' => Some(RightParen),
+            '{' => Some(LeftBrace),
+            '}' => Some(RightBrace),
+            ',' => Some(Comma),
+            '.' => Some(Dot),
+            '-' => Some(Minus),
+            '+' => Some(Plus),
+            ';' => Some(Semicolon),
+            '/' => Some(Slash),
+            '*' => Some(Star),
+
+            _ => {
+                eprintln!("[line 1] Error: Unexpected character: {}", c);
+                *had_error = true;
+                None
+            }
         };
-        r.push((token, i, i + 1));
+        if let Some(token) = maybe_token {
+            return Some(Token {
+                token_type: token,
+                lexeme: c.into(),
+            });
+        }
     }
-    r.push((Ok(Eof), contents.len(), contents.len()));
-    r
+}
+
+fn tokenize(contents: &str) -> (Vec<Token>, bool) {
+    let mut had_error = false;
+    let mut tokens = Vec::<Token>::new();
+    let mut iter = contents.chars().peekable();
+    while let Some(token) = scan_token(&mut iter, &mut had_error) {
+        tokens.push(token);
+    }
+    tokens.push(Token {
+        token_type: Eof,
+        lexeme: "".into(),
+    });
+    (tokens, had_error)
 }
 
 fn cmd_tokenize(filename: &str) -> ExitCode {
     let file_contents = fs::read_to_string(filename).unwrap();
-    let tokens = tokenize(&file_contents);
-    let mut was_err = false;
-    for (token, start, end) in tokens {
-        match token {
-            Ok(token) => {
-                println!(
-                    "{} {} null",
-                    token_type_name(token),
-                    &file_contents[start..end],
-                )
-            }
-            Err(char) => {
-                eprintln!("[line 1] Error: Unexpected character: {}", char);
-                was_err = true;
-            }
-        }
+    let (tokens, was_err) = tokenize(&file_contents);
+    for token in tokens {
+        println!(
+            "{} {} null",
+            token_type_name(token.token_type),
+            token.lexeme
+        );
     }
     if was_err {
         ExitCode::from(65)
