@@ -64,12 +64,22 @@ struct Token {
     lexeme: String,
 }
 
+fn is_match<I: Iterator<Item = char>>(iter: &mut Peekable<I>, c: char) -> bool {
+    if iter.peek() == Some(&c) {
+        iter.next();
+        true
+    } else {
+        false
+    }
+}
+
 fn scan_token<I: Iterator<Item = char>>(
     iter: &mut Peekable<I>,
     had_error: &mut bool,
 ) -> Option<Token> {
     loop {
         let c = iter.next()?;
+        let mut lexeme = c.to_string();
         let maybe_token = match c {
             ' ' | '\n' | '\t' => None,
             '(' => Some(LeftParen),
@@ -84,32 +94,24 @@ fn scan_token<I: Iterator<Item = char>>(
             '/' => Some(Slash),
             '*' => Some(Star),
 
-            '!' => {
-                if iter.peek() == Some(&'=') {
-                    Some(BangEqual)
+            '!' | '=' | '>' | '<' => {
+                if is_match(iter, '=') {
+                    lexeme.push('=');
+                    match c {
+                        '!' => Some(BangEqual),
+                        '=' => Some(EqualEqual),
+                        '>' => Some(GreaterEqual),
+                        '<' => Some(LessEqual),
+                        _ => unreachable!(),
+                    }
                 } else {
-                    Some(Bang)
-                }
-            }
-            '=' => {
-                if iter.peek() == Some(&'=') {
-                    Some(EqualEqual)
-                } else {
-                    Some(Equal)
-                }
-            }
-            '>' => {
-                if iter.peek() == Some(&'=') {
-                    Some(GreaterEqual)
-                } else {
-                    Some(Greater)
-                }
-            }
-            '<' => {
-                if iter.peek() == Some(&'=') {
-                    Some(LessEqual)
-                } else {
-                    Some(Less)
+                    match c {
+                        '!' => Some(Bang),
+                        '=' => Some(Equal),
+                        '>' => Some(Greater),
+                        '<' => Some(Less),
+                        _ => unreachable!(),
+                    }
                 }
             }
 
@@ -119,11 +121,8 @@ fn scan_token<I: Iterator<Item = char>>(
                 None
             }
         };
-        if let Some(token) = maybe_token {
-            return Some(Token {
-                token_type: token,
-                lexeme: c.into(),
-            });
+        if let Some(token_type) = maybe_token {
+            return Some(Token { token_type, lexeme });
         }
     }
 }
