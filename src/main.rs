@@ -2,10 +2,19 @@ use std::env;
 use std::fs;
 
 enum Token {
+    // Single-character tokens
     LeftParen,
     RightParen,
     LeftBrace,
     RightBrace,
+    Comma,
+    Dot,
+    Minus,
+    Plus,
+    Semicolon,
+    Slash,
+    Star,
+
     Eof,
 }
 
@@ -17,6 +26,13 @@ fn token_type_name(token: Token) -> &'static str {
         RightParen => "RIGHT_PAREN",
         LeftBrace => "LEFT_BRACE",
         RightBrace => "RIGHT_BRACE",
+        Comma => "COMMA",
+        Dot => "DOT",
+        Minus => "MINUS",
+        Plus => "PLUS",
+        Semicolon => "SEMICOLON",
+        Slash => "SLASH",
+        Star => "STAR",
         Eof => "EOF",
     }
 }
@@ -32,6 +48,14 @@ fn tokenize(contents: &str) -> Vec<(Token, usize, usize)> {
             ')' => RightParen,
             '{' => LeftBrace,
             '}' => RightBrace,
+            ',' => Comma,
+            '.' => Dot,
+            '-' => Minus,
+            '+' => Plus,
+            ';' => Semicolon,
+            '/' => Slash,
+            '*' => Star,
+
             _ => panic!("Unexpected char {:?}", char),
         };
         r.push((token, i, i + 1));
