@@ -2,9 +2,11 @@ use std::env;
 use std::fs;
 use std::process::ExitCode;
 
-mod tokenizer;
+pub mod parser;
+pub mod tokenizer;
 
-use tokenizer::{tokenize, TokenType};
+use parser::parse;
+use tokenizer::tokenize;
 
 fn cmd_tokenize(filename: &str) -> ExitCode {
     let file_contents = fs::read_to_string(filename).unwrap();
@@ -30,20 +32,8 @@ fn cmd_parse(filename: &str) -> ExitCode {
     if had_error {
         return ExitCode::from(65);
     }
-    if tokens.len() == 2 {
-        assert!(tokens[1].token_type == TokenType::Eof);
-        let s: String = match &tokens[0].token_type {
-            TokenType::True => "true".into(),
-            TokenType::False => "false".into(),
-            TokenType::Nil => "nil".into(),
-            TokenType::Number(f) => format!("{:?}", f),
-            TokenType::StringLiteral(s) => s.clone(),
-            _ => todo!(),
-        };
-        println!("{}", s);
-    } else {
-        panic!("Unimplemented");
-    }
+    let expr = parse(&tokens);
+    println!("{}", expr);
     ExitCode::SUCCESS
 }
 
