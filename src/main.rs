@@ -1,6 +1,45 @@
 use std::env;
 use std::fs;
 
+enum Token {
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Eof,
+}
+
+use Token::*;
+
+fn token_type_name(token: Token) -> &'static str {
+    match token {
+        LeftParen => "LEFT_PAREN",
+        RightParen => "RIGHT_PAREN",
+        LeftBrace => "LEFT_BRACE",
+        RightBrace => "RIGHT_BRACE",
+        Eof => "EOF",
+    }
+}
+
+fn tokenize(contents: &str) -> Vec<(Token, usize, usize)> {
+    let mut r = Vec::<(Token, usize, usize)>::new();
+    for (i, char) in contents.chars().enumerate() {
+        if char == ' ' || char == '\n' || char == '\t' {
+            continue;
+        }
+        let token = match char {
+            '(' => LeftParen,
+            ')' => RightParen,
+            '{' => LeftBrace,
+            '}' => RightBrace,
+            _ => panic!("Unexpected char {:?}", char),
+        };
+        r.push((token, i, i + 1));
+    }
+    r.push((Eof, contents.len(), contents.len()));
+    r
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
@@ -13,24 +52,15 @@ fn main() {
 
     match command.as_str() {
         "tokenize" => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {}", filename);
-                String::new()
-            });
-
-            for char in file_contents.chars() {
-                match char {
-                    '(' => {
-                        println!("LEFT_PAREN ( null");
-                    }
-                    ')' => {
-                        println!("RIGHT_PAREN ) null");
-                    }
-                    ' ' | '\n' | '\t' => {}
-                    _ => panic!("Unexpected char {:?}", char),
-                }
+            let file_contents = fs::read_to_string(filename).unwrap();
+            let tokens = tokenize(&file_contents);
+            for (token, start, end) in tokens {
+                println!(
+                    "{} {} null",
+                    token_type_name(token),
+                    &file_contents[start..end],
+                )
             }
-            println!("EOF  null");
         }
         _ => {
             panic!("Unknown command: {}", command);
