@@ -84,6 +84,35 @@ fn scan_token<I: Iterator<Item = char>>(
             '/' => Some(Slash),
             '*' => Some(Star),
 
+            '!' => {
+                if iter.peek() == Some(&'=') {
+                    Some(BangEqual)
+                } else {
+                    Some(Bang)
+                }
+            }
+            '=' => {
+                if iter.peek() == Some(&'=') {
+                    Some(EqualEqual)
+                } else {
+                    Some(Equal)
+                }
+            }
+            '>' => {
+                if iter.peek() == Some(&'=') {
+                    Some(GreaterEqual)
+                } else {
+                    Some(Greater)
+                }
+            }
+            '<' => {
+                if iter.peek() == Some(&'=') {
+                    Some(LessEqual)
+                } else {
+                    Some(Less)
+                }
+            }
+
             _ => {
                 eprintln!("[line 1] Error: Unexpected character: {}", c);
                 *had_error = true;
@@ -115,7 +144,7 @@ fn tokenize(contents: &str) -> (Vec<Token>, bool) {
 
 fn cmd_tokenize(filename: &str) -> ExitCode {
     let file_contents = fs::read_to_string(filename).unwrap();
-    let (tokens, was_err) = tokenize(&file_contents);
+    let (tokens, had_error) = tokenize(&file_contents);
     for token in tokens {
         println!(
             "{} {} null",
@@ -123,7 +152,7 @@ fn cmd_tokenize(filename: &str) -> ExitCode {
             token.lexeme
         );
     }
-    if was_err {
+    if had_error {
         ExitCode::from(65)
     } else {
         ExitCode::SUCCESS
