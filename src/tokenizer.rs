@@ -1,4 +1,4 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen,
@@ -25,8 +25,8 @@ pub enum TokenType {
 
     // Literals
     Identifier,
-    StringLiteral(String),
-    Number(f64),
+    StringLiteral,
+    Number,
 
     // Keywords
     And,
@@ -98,8 +98,8 @@ impl TokenType {
             LessEqual => "LESS_EQUAL",
 
             Identifier => "IDENTIFIER",
-            StringLiteral(_) => "STRING",
-            Number(_) => "NUMBER",
+            StringLiteral => "STRING",
+            Number => "NUMBER",
 
             And => "AND",
             Class => "CLASS",
@@ -121,19 +121,25 @@ impl TokenType {
             Eof => "EOF",
         }
     }
-
-    pub fn literal_str(&self) -> String {
-        match self {
-            StringLiteral(s) => s.clone(),
-            Number(f) => format!("{:?}", f),
-            _ => "null".into(),
-        }
-    }
 }
 
+#[derive(Clone, Debug)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
+}
+
+impl Token {
+    pub fn literal_str(&self) -> String {
+        match self.token_type {
+            StringLiteral => self.lexeme[1..self.lexeme.len() - 1].to_string(),
+            Number => {
+                let x = self.lexeme.parse::<f64>().unwrap();
+                format!("{:?}", x)
+            }
+            _ => "null".into(),
+        }
+    }
 }
 
 struct Scanner {
@@ -264,7 +270,7 @@ fn scan_token(scanner: &mut Scanner) -> Option<Token> {
                     break;
                 }
             }
-            StringLiteral(scanner.substr(start + 1, scanner.current - 1))
+            StringLiteral
         }
 
         '0'..='9' => {
@@ -279,12 +285,7 @@ fn scan_token(scanner: &mut Scanner) -> Option<Token> {
             while scanner.peek().is_some_and(|c| c.is_ascii_digit()) {
                 scanner.advance();
             }
-            Number(
-                scanner
-                    .substr(start, scanner.current)
-                    .parse::<f64>()
-                    .unwrap(),
-            )
+            Number
         }
 
         '_' | 'a'..='z' | 'A'..='Z' => {

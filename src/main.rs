@@ -16,7 +16,7 @@ fn cmd_tokenize(filename: &str) -> ExitCode {
             "{} {} {}",
             token.token_type.name(),
             token.lexeme,
-            token.token_type.literal_str()
+            token.literal_str()
         );
     }
     if had_error {
