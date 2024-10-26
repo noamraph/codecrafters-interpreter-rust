@@ -245,6 +245,7 @@ impl Parser {
             _ => None,
         };
         if let Some(op) = op {
+            self.advance();
             Expr::Unary(Unary {
                 op,
                 expr: Box::new(self.unary()),
@@ -270,6 +271,10 @@ impl Parser {
             TokenType::Nil => Expr::Literal(Literal::Nil),
             TokenType::LeftParen => {
                 let expr = self.expression();
+                let token = self.advance();
+                if token.token_type != TokenType::RightParen {
+                    panic!("Expecting ')', got {:?}", token.token_type);
+                }
                 Expr::Grouping(Grouping(Box::new(expr)))
             }
             _ => panic!("Unexpected token {:?}", token.token_type),
