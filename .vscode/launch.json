@@ -20,7 +20,7 @@
                 }
             },
             "args": [
-                "parse",
+                "evaluate",
                 "test.lox",
             ],
             "cwd": "${workspaceFolder}"

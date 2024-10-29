@@ -18,8 +18,8 @@ pub enum Literal {
 }
 
 pub struct Unary {
-    op: UnaryOperator,
-    expr: Box<Expr>,
+    pub op: UnaryOperator,
+    pub expr: Box<Expr>,
 }
 
 pub enum UnaryOperator {
@@ -28,9 +28,9 @@ pub enum UnaryOperator {
 }
 
 pub struct Binary {
-    left: Box<Expr>,
-    op: BinaryOperator,
-    right: Box<Expr>,
+    pub left: Box<Expr>,
+    pub op: BinaryOperator,
+    pub right: Box<Expr>,
 }
 
 pub enum BinaryOperator {
