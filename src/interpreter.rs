@@ -72,11 +72,16 @@ pub fn evaluate(expr: &Expr) -> Result<Value, RuntimeError> {
                     Value::Number(left) => Value::Number(left + expect_number(&right, *line)?),
                     Value::String(left) => {
                         let Value::String(right) = right else {
-                            panic!("Expecting a string");
+                            return Err(RuntimeError::new(*line, "Expecting a string".into()));
                         };
                         Value::String(format!("{}{}", left, right))
                     }
-                    _ => panic!("Expecting a number or a string"),
+                    _ => {
+                        return Err(RuntimeError::new(
+                            *line,
+                            "Expecting a number or a string".into(),
+                        ))
+                    }
                 },
                 BinaryOperator::Sub => {
                     Value::Number(expect_number(&left, *line)? - expect_number(&right, *line)?)
