@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::parser::{BinaryOperator, Expr, Literal, UnaryOperator};
 
+#[derive(PartialEq)]
 pub enum Value {
     Nil,
     Bool(bool),
@@ -69,7 +70,18 @@ pub fn evaluate(expr: &Expr) -> Value {
                 BinaryOperator::Sub => Value::Number(expect_number(&left) - expect_number(&right)),
                 BinaryOperator::Mul => Value::Number(expect_number(&left) * expect_number(&right)),
                 BinaryOperator::Div => Value::Number(expect_number(&left) / expect_number(&right)),
-                _ => todo!(),
+                BinaryOperator::Equal => Value::Bool(left == right),
+                BinaryOperator::NotEqual => Value::Bool(left != right),
+                BinaryOperator::Less => Value::Bool(expect_number(&left) < expect_number(&right)),
+                BinaryOperator::LessEqual => {
+                    Value::Bool(expect_number(&left) <= expect_number(&right))
+                }
+                BinaryOperator::Greater => {
+                    Value::Bool(expect_number(&left) > expect_number(&right))
+                }
+                BinaryOperator::GreaterEqual => {
+                    Value::Bool(expect_number(&left) >= expect_number(&right))
+                }
             }
         }
     }
