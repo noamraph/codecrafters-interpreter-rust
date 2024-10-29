@@ -37,6 +37,7 @@ pub fn evaluate(expr: &Expr) -> Value {
                 todo!()
             }
         },
+        Expr::Grouping(grouping) => evaluate(&grouping.0),
         _ => todo!(),
     }
 }

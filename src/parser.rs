@@ -46,7 +46,7 @@ pub enum BinaryOperator {
     Div,
 }
 
-pub struct Grouping(Box<Expr>);
+pub struct Grouping(pub Box<Expr>);
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
