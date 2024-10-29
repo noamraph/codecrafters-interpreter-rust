@@ -120,6 +120,8 @@ struct Parser {
     current: usize,
 }
 
+pub struct ParseError();
+
 impl Parser {
     fn new(tokens: &[Token]) -> Self {
         Parser {
@@ -137,23 +139,46 @@ impl Parser {
         &self.tokens[self.current]
     }
 
+    fn check(&self, token_type: TokenType) -> bool {
+        self.peek().token_type == token_type
+    }
+
     fn is_at_end(&self) -> bool {
         self.peek().token_type == TokenType::Eof
     }
 
-    fn advance(&mut self) -> &Token {
-        if !self.is_at_end() {
-            self.current += 1;
+    fn advance(&mut self) -> Result<&Token, ParseError> {
+        if self.is_at_end() {
+            return Err(self.error(self.peek(), "Not expecting end of file"));
         }
-        self.previous()
+        self.current += 1;
+        Ok(self.previous())
     }
 
-    fn expression(&mut self) -> Expr {
+    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<&Token, ParseError> {
+        if self.check(token_type) {
+            self.advance()
+        } else {
+            Err(self.error(self.peek(), msg))
+        }
+    }
+
+    fn error(&self, token: &Token, msg: &str) -> ParseError {
+        let where_s: String = if token.token_type == TokenType::Eof {
+            "end".into()
+        } else {
+            format!("'{}'", token.lexeme)
+        };
+        eprintln!("[line {}] Error at {}: {}", token.line, where_s, msg);
+        ParseError()
+    }
+
+    fn expression(&mut self) -> Result<Expr, ParseError> {
         self.equality()
     }
 
-    fn equality(&mut self) -> Expr {
-        let mut expr = self.comparison();
+    fn equality(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.comparison()?;
 
         loop {
             let op = match self.peek().token_type {
@@ -161,8 +186,8 @@ impl Parser {
                 TokenType::EqualEqual => BinaryOperator::Equal,
                 _ => break,
             };
-            self.advance();
-            let right = self.comparison();
+            self.advance()?;
+            let right = self.comparison()?;
             expr = Expr::Binary(Binary {
                 left: Box::new(expr),
                 op,
@@ -170,11 +195,11 @@ impl Parser {
             });
         }
 
-        expr
+        Ok(expr)
     }
 
-    fn comparison(&mut self) -> Expr {
-        let mut expr = self.term();
+    fn comparison(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.term()?;
 
         loop {
             let op = match self.peek().token_type {
@@ -184,8 +209,8 @@ impl Parser {
                 TokenType::LessEqual => BinaryOperator::LessEqual,
                 _ => break,
             };
-            self.advance();
-            let right = self.term();
+            self.advance()?;
+            let right = self.term()?;
             expr = Expr::Binary(Binary {
                 left: Box::new(expr),
                 op,
@@ -193,11 +218,11 @@ impl Parser {
             })
         }
 
-        expr
+        Ok(expr)
     }
 
-    fn term(&mut self) -> Expr {
-        let mut expr = self.factor();
+    fn term(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.factor()?;
 
         loop {
             let op = match self.peek().token_type {
@@ -205,8 +230,8 @@ impl Parser {
                 TokenType::Plus => BinaryOperator::Add,
                 _ => break,
             };
-            self.advance();
-            let right = self.factor();
+            self.advance()?;
+            let right = self.factor()?;
             expr = Expr::Binary(Binary {
                 left: Box::new(expr),
                 op,
@@ -214,11 +239,11 @@ impl Parser {
             })
         }
 
-        expr
+        Ok(expr)
     }
 
-    fn factor(&mut self) -> Expr {
-        let mut expr = self.unary();
+    fn factor(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.unary()?;
 
         loop {
             let op = match self.peek().token_type {
@@ -226,8 +251,8 @@ impl Parser {
                 TokenType::Star => BinaryOperator::Mul,
                 _ => break,
             };
-            self.advance();
-            let right = self.unary();
+            self.advance()?;
+            let right = self.unary()?;
             expr = Expr::Binary(Binary {
                 left: Box::new(expr),
                 op,
@@ -235,29 +260,29 @@ impl Parser {
             })
         }
 
-        expr
+        Ok(expr)
     }
 
-    fn unary(&mut self) -> Expr {
+    fn unary(&mut self) -> Result<Expr, ParseError> {
         let op = match self.peek().token_type {
             TokenType::Bang => Some(UnaryOperator::Not),
             TokenType::Minus => Some(UnaryOperator::Negative),
             _ => None,
         };
         if let Some(op) = op {
-            self.advance();
-            Expr::Unary(Unary {
+            self.advance()?;
+            Ok(Expr::Unary(Unary {
                 op,
-                expr: Box::new(self.unary()),
-            })
+                expr: Box::new(self.unary()?),
+            }))
         } else {
             self.primary()
         }
     }
 
-    fn primary(&mut self) -> Expr {
-        let token = self.advance();
-        match token.token_type {
+    fn primary(&mut self) -> Result<Expr, ParseError> {
+        let token = self.advance()?.clone();
+        let expr = match token.token_type {
             TokenType::Number => {
                 let x = token.lexeme.parse::<f64>().unwrap();
                 Expr::Literal(Literal::Number(x))
@@ -270,19 +295,17 @@ impl Parser {
             TokenType::False => Expr::Literal(Literal::False),
             TokenType::Nil => Expr::Literal(Literal::Nil),
             TokenType::LeftParen => {
-                let expr = self.expression();
-                let token = self.advance();
-                if token.token_type != TokenType::RightParen {
-                    panic!("Expecting ')', got {:?}", token.token_type);
-                }
+                let expr = self.expression()?;
+                self.consume(TokenType::RightParen, "Expecting `)`")?;
                 Expr::Grouping(Grouping(Box::new(expr)))
             }
-            _ => panic!("Unexpected token {:?}", token.token_type),
-        }
+            _ => return Err(self.error(&token, "Unexpected token")),
+        };
+        Ok(expr)
     }
 }
 
-pub fn parse(tokens: &[Token]) -> Expr {
+pub fn parse(tokens: &[Token]) -> Result<Expr, ParseError> {
     let mut parser = Parser::new(tokens);
     parser.expression()
 }

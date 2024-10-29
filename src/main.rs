@@ -5,7 +5,7 @@ use std::process::ExitCode;
 pub mod parser;
 pub mod tokenizer;
 
-use parser::parse;
+use parser::{parse, ParseError};
 use tokenizer::tokenize;
 
 fn cmd_tokenize(filename: &str) -> ExitCode {
@@ -32,9 +32,14 @@ fn cmd_parse(filename: &str) -> ExitCode {
     if had_error {
         return ExitCode::from(65);
     }
-    let expr = parse(&tokens);
-    println!("{}", expr);
-    ExitCode::SUCCESS
+    let maybe_expr = parse(&tokens);
+    match maybe_expr {
+        Ok(expr) => {
+            println!("{}", expr);
+            ExitCode::SUCCESS
+        }
+        Err(ParseError()) => ExitCode::from(65),
+    }
 }
 
 fn main() -> ExitCode {

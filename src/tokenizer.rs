@@ -127,6 +127,7 @@ impl TokenType {
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
+    pub line: usize,
 }
 
 impl Token {
@@ -308,7 +309,11 @@ fn scan_token(scanner: &mut Scanner) -> Option<Token> {
         }
     };
     let lexeme = scanner.substr(start, scanner.current);
-    Some(Token { token_type, lexeme })
+    Some(Token {
+        token_type,
+        lexeme,
+        line: scanner.line,
+    })
 }
 
 pub fn tokenize(contents: &str) -> (Vec<Token>, bool) {
@@ -322,6 +327,7 @@ pub fn tokenize(contents: &str) -> (Vec<Token>, bool) {
     tokens.push(Token {
         token_type: Eof,
         lexeme: "".into(),
+        line: scanner.line,
     });
     (tokens, scanner.had_error)
 }
