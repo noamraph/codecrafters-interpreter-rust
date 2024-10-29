@@ -56,13 +56,21 @@ pub fn evaluate(expr: &Expr) -> Value {
             let left = evaluate(&binary.left);
             let right = evaluate(&binary.right);
             match binary.op {
-                BinaryOperator::Add => Value::Number(expect_number(&left) + expect_number(&right)),
+                BinaryOperator::Add => match left {
+                    Value::Number(left) => Value::Number(left + expect_number(&right)),
+                    Value::String(left) => {
+                        let Value::String(right) = right else {
+                            panic!("Expecting a string");
+                        };
+                        Value::String(format!("{}{}", left, right))
+                    }
+                    _ => panic!("Expecting a number or a string"),
+                },
                 BinaryOperator::Sub => Value::Number(expect_number(&left) - expect_number(&right)),
                 BinaryOperator::Mul => Value::Number(expect_number(&left) * expect_number(&right)),
                 BinaryOperator::Div => Value::Number(expect_number(&left) / expect_number(&right)),
                 _ => todo!(),
             }
         }
-        _ => todo!(),
     }
 }
