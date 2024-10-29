@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::parser::{Expr, Literal, UnaryOperator};
+use crate::parser::{BinaryOperator, Expr, Literal, UnaryOperator};
 
 pub enum Value {
     Nil,
@@ -28,6 +28,13 @@ fn to_bool(val: &Value) -> bool {
     }
 }
 
+fn expect_number(val: &Value) -> f64 {
+    let Value::Number(x) = val else {
+        panic!("Expecting a number");
+    };
+    *x
+}
+
 pub fn evaluate(expr: &Expr) -> Value {
     match expr {
         Expr::Literal(literal) => match literal {
@@ -40,16 +47,22 @@ pub fn evaluate(expr: &Expr) -> Value {
         Expr::Unary(unary) => {
             let val = evaluate(&unary.expr);
             match unary.op {
-                UnaryOperator::Negative => {
-                    let Value::Number(x) = val else {
-                        panic!("Expecting a number");
-                    };
-                    Value::Number(-x)
-                }
+                UnaryOperator::Negative => Value::Number(-expect_number(&val)),
                 UnaryOperator::Not => Value::Bool(!to_bool(&val)),
             }
         }
         Expr::Grouping(grouping) => evaluate(&grouping.0),
+        Expr::Binary(binary) => {
+            let left = evaluate(&binary.left);
+            let right = evaluate(&binary.right);
+            match binary.op {
+                BinaryOperator::Add => Value::Number(expect_number(&left) + expect_number(&right)),
+                BinaryOperator::Sub => Value::Number(expect_number(&left) - expect_number(&right)),
+                BinaryOperator::Mul => Value::Number(expect_number(&left) * expect_number(&right)),
+                BinaryOperator::Div => Value::Number(expect_number(&left) / expect_number(&right)),
+                _ => todo!(),
+            }
+        }
         _ => todo!(),
     }
 }
