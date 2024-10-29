@@ -50,9 +50,17 @@ fn cmd_evaluate(filename: &str) -> ExitCode {
     let Ok(expr) = parse(&tokens) else {
         return ExitCode::from(65);
     };
-    let val = evaluate(&expr);
-    println!("{}", val);
-    ExitCode::SUCCESS
+    let maybe_val = evaluate(&expr);
+    match maybe_val {
+        Ok(val) => {
+            println!("{}", val);
+            ExitCode::SUCCESS
+        }
+        Err(err) => {
+            eprintln!("{}\n[line {}]", err.msg, err.line);
+            ExitCode::from(70)
+        }
+    }
 }
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();

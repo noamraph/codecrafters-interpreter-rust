@@ -3,10 +3,10 @@ use std::fmt;
 use crate::tokenizer::{Token, TokenType};
 
 pub enum Expr {
-    Literal(Literal),
-    Unary(Unary),
-    Binary(Binary),
-    Grouping(Grouping),
+    Literal(usize, Literal),
+    Unary(usize, Unary),
+    Binary(usize, Binary),
+    Grouping(usize, Grouping),
 }
 
 pub enum Literal {
@@ -51,10 +51,10 @@ pub struct Grouping(pub Box<Expr>);
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Literal(literal) => literal.fmt(f),
-            Self::Unary(unary) => unary.fmt(f),
-            Self::Binary(binary) => binary.fmt(f),
-            Self::Grouping(grouping) => grouping.fmt(f),
+            Self::Literal(_, literal) => literal.fmt(f),
+            Self::Unary(_, unary) => unary.fmt(f),
+            Self::Binary(_, binary) => binary.fmt(f),
+            Self::Grouping(_, grouping) => grouping.fmt(f),
         }
     }
 }
@@ -173,6 +173,10 @@ impl Parser {
         ParseError()
     }
 
+    fn line(&self) -> usize {
+        self.peek().line
+    }
+
     fn expression(&mut self) -> Result<Expr, ParseError> {
         self.equality()
     }
@@ -188,11 +192,14 @@ impl Parser {
             };
             self.advance()?;
             let right = self.comparison()?;
-            expr = Expr::Binary(Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(right),
-            });
+            expr = Expr::Binary(
+                self.line(),
+                Binary {
+                    left: Box::new(expr),
+                    op,
+                    right: Box::new(right),
+                },
+            );
         }
 
         Ok(expr)
@@ -211,11 +218,14 @@ impl Parser {
             };
             self.advance()?;
             let right = self.term()?;
-            expr = Expr::Binary(Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(right),
-            })
+            expr = Expr::Binary(
+                self.line(),
+                Binary {
+                    left: Box::new(expr),
+                    op,
+                    right: Box::new(right),
+                },
+            )
         }
 
         Ok(expr)
@@ -232,11 +242,14 @@ impl Parser {
             };
             self.advance()?;
             let right = self.factor()?;
-            expr = Expr::Binary(Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(right),
-            })
+            expr = Expr::Binary(
+                self.line(),
+                Binary {
+                    left: Box::new(expr),
+                    op,
+                    right: Box::new(right),
+                },
+            )
         }
 
         Ok(expr)
@@ -253,11 +266,14 @@ impl Parser {
             };
             self.advance()?;
             let right = self.unary()?;
-            expr = Expr::Binary(Binary {
-                left: Box::new(expr),
-                op,
-                right: Box::new(right),
-            })
+            expr = Expr::Binary(
+                self.line(),
+                Binary {
+                    left: Box::new(expr),
+                    op,
+                    right: Box::new(right),
+                },
+            )
         }
 
         Ok(expr)
@@ -271,10 +287,13 @@ impl Parser {
         };
         if let Some(op) = op {
             self.advance()?;
-            Ok(Expr::Unary(Unary {
-                op,
-                expr: Box::new(self.unary()?),
-            }))
+            Ok(Expr::Unary(
+                self.line(),
+                Unary {
+                    op,
+                    expr: Box::new(self.unary()?),
+                },
+            ))
         } else {
             self.primary()
         }
@@ -285,19 +304,19 @@ impl Parser {
         let expr = match token.token_type {
             TokenType::Number => {
                 let x = token.lexeme.parse::<f64>().unwrap();
-                Expr::Literal(Literal::Number(x))
+                Expr::Literal(token.line, Literal::Number(x))
             }
             TokenType::StringLiteral => {
                 let s = token.lexeme[1..token.lexeme.len() - 1].to_string();
-                Expr::Literal(Literal::String(s))
+                Expr::Literal(token.line, Literal::String(s))
             }
-            TokenType::True => Expr::Literal(Literal::True),
-            TokenType::False => Expr::Literal(Literal::False),
-            TokenType::Nil => Expr::Literal(Literal::Nil),
+            TokenType::True => Expr::Literal(token.line, Literal::True),
+            TokenType::False => Expr::Literal(token.line, Literal::False),
+            TokenType::Nil => Expr::Literal(token.line, Literal::Nil),
             TokenType::LeftParen => {
                 let expr = self.expression()?;
                 self.consume(TokenType::RightParen, "Expecting `)`")?;
-                Expr::Grouping(Grouping(Box::new(expr)))
+                Expr::Grouping(token.line, Grouping(Box::new(expr)))
             }
             _ => return Err(self.error(&token, "Unexpected token")),
         };
