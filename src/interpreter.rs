@@ -20,6 +20,14 @@ impl fmt::Display for Value {
     }
 }
 
+fn to_bool(val: &Value) -> bool {
+    match val {
+        Value::Nil => false,
+        Value::Bool(b) => *b,
+        _ => true,
+    }
+}
+
 pub fn evaluate(expr: &Expr) -> Value {
     match expr {
         Expr::Literal(literal) => match literal {
@@ -29,14 +37,18 @@ pub fn evaluate(expr: &Expr) -> Value {
             Literal::False => Value::Bool(false),
             Literal::Nil => Value::Nil,
         },
-        Expr::Unary(unary) => match unary.op {
-            UnaryOperator::Negative => {
-                todo!()
+        Expr::Unary(unary) => {
+            let val = evaluate(&unary.expr);
+            match unary.op {
+                UnaryOperator::Negative => {
+                    let Value::Number(x) = val else {
+                        panic!("Expecting a number");
+                    };
+                    Value::Number(-x)
+                }
+                UnaryOperator::Not => Value::Bool(!to_bool(&val)),
             }
-            UnaryOperator::Not => {
-                todo!()
-            }
-        },
+        }
         Expr::Grouping(grouping) => evaluate(&grouping.0),
         _ => todo!(),
     }
