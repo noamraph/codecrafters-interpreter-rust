@@ -14,7 +14,7 @@ impl fmt::Display for Value {
         match self {
             Value::Nil => write!(f, "nil"),
             Value::Bool(bool) => write!(f, "{}", bool),
-            Value::Number(x) => write!(f, "{:?}", x),
+            Value::Number(x) => write!(f, "{}", x),
             Value::String(s) => write!(f, "{}", s),
         }
     }
