@@ -48,6 +48,15 @@ pub enum BinaryOperator {
 
 pub struct Grouping(pub Box<Expr>);
 
+pub enum Stmt {
+    Expr(Expr),
+    Print(Expr),
+}
+
+pub struct Program {
+    pub stmts: Vec<Stmt>,
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -115,6 +124,25 @@ impl fmt::Display for Grouping {
     }
 }
 
+impl fmt::Display for Stmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Stmt::Expr(e) => write!(f, "(expr {})", e),
+            Stmt::Print(e) => write!(f, "(print {})", e),
+        }
+    }
+}
+
+impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "(")?;
+        for stmt in &self.stmts {
+            writeln!(f, "  {}", stmt)?;
+        }
+        writeln!(f, ")")
+    }
+}
+
 struct Parser {
     tokens: Vec<Token>,
     current: usize,
@@ -175,6 +203,27 @@ impl Parser {
 
     fn line(&self) -> usize {
         self.peek().line
+    }
+
+    fn program(&mut self) -> Result<Program, ParseError> {
+        let mut stmts = Vec::<Stmt>::new();
+        while !self.is_at_end() {
+            stmts.push(self.stmt()?);
+        }
+        Ok(Program { stmts })
+    }
+
+    fn stmt(&mut self) -> Result<Stmt, ParseError> {
+        if self.check(TokenType::Print) {
+            self.advance()?;
+            let expr = self.expression()?;
+            self.consume(TokenType::Semicolon, "Expecting `;`")?;
+            Ok(Stmt::Print(expr))
+        } else {
+            let expr = self.expression()?;
+            self.consume(TokenType::Semicolon, "Expecting `;`")?;
+            Ok(Stmt::Expr(expr))
+        }
     }
 
     fn expression(&mut self) -> Result<Expr, ParseError> {
@@ -324,7 +373,12 @@ impl Parser {
     }
 }
 
-pub fn parse(tokens: &[Token]) -> Result<Expr, ParseError> {
+pub fn parse_expr(tokens: &[Token]) -> Result<Expr, ParseError> {
     let mut parser = Parser::new(tokens);
     parser.expression()
+}
+
+pub fn parse_program(tokens: &[Token]) -> Result<Program, ParseError> {
+    let mut parser = Parser::new(tokens);
+    parser.program()
 }
