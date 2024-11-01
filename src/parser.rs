@@ -4,6 +4,7 @@ use crate::tokenizer::{Token, TokenType};
 
 pub enum Expr {
     Literal(usize, Literal),
+    Variable(usize, Variable),
     Unary(usize, Unary),
     Binary(usize, Binary),
     Grouping(usize, Grouping),
@@ -16,6 +17,8 @@ pub enum Literal {
     False,
     Nil,
 }
+
+pub struct Variable(pub String);
 
 pub struct Unary {
     pub op: UnaryOperator,
@@ -51,6 +54,10 @@ pub struct Grouping(pub Box<Expr>);
 pub enum Stmt {
     Expr(Expr),
     Print(Expr),
+    Var {
+        name: String,
+        initializer: Option<Expr>,
+    },
 }
 
 pub struct Program {
@@ -61,6 +68,7 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Literal(_, literal) => literal.fmt(f),
+            Self::Variable(_, variable) => variable.fmt(f),
             Self::Unary(_, unary) => unary.fmt(f),
             Self::Binary(_, binary) => binary.fmt(f),
             Self::Grouping(_, grouping) => grouping.fmt(f),
@@ -77,6 +85,12 @@ impl fmt::Display for Literal {
             Self::False => write!(f, "false"),
             Self::Nil => write!(f, "nil"),
         }
+    }
+}
+
+impl fmt::Display for Variable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(variable {})", self.0)
     }
 }
 
@@ -129,6 +143,13 @@ impl fmt::Display for Stmt {
         match self {
             Stmt::Expr(e) => write!(f, "(expr {})", e),
             Stmt::Print(e) => write!(f, "(print {})", e),
+            Stmt::Var { name, initializer } => {
+                if let Some(e) = initializer {
+                    write!(f, "(var {} {})", name, e)
+                } else {
+                    write!(f, "(var {})", name)
+                }
+            }
         }
     }
 }
@@ -183,9 +204,18 @@ impl Parser {
         Ok(self.previous())
     }
 
+    fn check_advance(&mut self, token_type: TokenType) -> Option<&Token> {
+        if self.check(token_type) {
+            self.current += 1;
+            Some(self.previous())
+        } else {
+            None
+        }
+    }
+
     fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<&Token, ParseError> {
         if self.check(token_type) {
-            self.advance()
+            Ok(self.advance()?)
         } else {
             Err(self.error(self.peek(), msg))
         }
@@ -208,9 +238,27 @@ impl Parser {
     fn program(&mut self) -> Result<Program, ParseError> {
         let mut stmts = Vec::<Stmt>::new();
         while !self.is_at_end() {
-            stmts.push(self.stmt()?);
+            stmts.push(self.declaration()?);
         }
         Ok(Program { stmts })
+    }
+
+    fn declaration(&mut self) -> Result<Stmt, ParseError> {
+        if self.check_advance(TokenType::Var).is_some() {
+            let name = self
+                .consume(TokenType::Identifier, "Expecting var name")?
+                .lexeme
+                .clone();
+            let initializer = if self.check_advance(TokenType::Equal).is_some() {
+                Some(self.expression()?)
+            } else {
+                None
+            };
+            self.consume(TokenType::Semicolon, "Expecting `;`")?;
+            Ok(Stmt::Var { name, initializer })
+        } else {
+            self.stmt()
+        }
     }
 
     fn stmt(&mut self) -> Result<Stmt, ParseError> {
@@ -351,6 +399,7 @@ impl Parser {
     fn primary(&mut self) -> Result<Expr, ParseError> {
         let token = self.advance()?.clone();
         let expr = match token.token_type {
+            TokenType::Identifier => Expr::Variable(token.line, Variable(token.lexeme)),
             TokenType::Number => {
                 let x = token.lexeme.parse::<f64>().unwrap();
                 Expr::Literal(token.line, Literal::Number(x))

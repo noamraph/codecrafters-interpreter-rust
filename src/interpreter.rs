@@ -1,8 +1,8 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
-use crate::parser::{BinaryOperator, Expr, Literal, UnaryOperator};
+use crate::parser::{BinaryOperator, Expr, Literal, Program, Stmt, UnaryOperator, Variable};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum Value {
     Nil,
     Bool(bool),
@@ -47,7 +47,9 @@ fn expect_number(val: &Value, line: usize) -> Result<f64, RuntimeError> {
     }
 }
 
-pub fn evaluate(expr: &Expr) -> Result<Value, RuntimeError> {
+pub type Environment = HashMap<String, Value>;
+
+pub fn evaluate(expr: &Expr, ctx: &Environment) -> Result<Value, RuntimeError> {
     Ok(match expr {
         Expr::Literal(_, literal) => match literal {
             Literal::Number(x) => Value::Number(*x),
@@ -56,17 +58,26 @@ pub fn evaluate(expr: &Expr) -> Result<Value, RuntimeError> {
             Literal::False => Value::Bool(false),
             Literal::Nil => Value::Nil,
         },
+        Expr::Variable(line, Variable(name)) => match ctx.get(name) {
+            Some(v) => v.clone(),
+            None => {
+                return Err(RuntimeError::new(
+                    *line,
+                    format!("Undefined variable '{}'.", name),
+                ))
+            }
+        },
         Expr::Unary(line, unary) => {
-            let val = evaluate(&unary.expr)?;
+            let val = evaluate(&unary.expr, ctx)?;
             match unary.op {
                 UnaryOperator::Negative => Value::Number(-expect_number(&val, *line)?),
                 UnaryOperator::Not => Value::Bool(!to_bool(&val)),
             }
         }
-        Expr::Grouping(_, grouping) => evaluate(&grouping.0)?,
+        Expr::Grouping(_, grouping) => evaluate(&grouping.0, ctx)?,
         Expr::Binary(line, binary) => {
-            let left = evaluate(&binary.left)?;
-            let right = evaluate(&binary.right)?;
+            let left = evaluate(&binary.left, ctx)?;
+            let right = evaluate(&binary.right, ctx)?;
             match binary.op {
                 BinaryOperator::Add => match left {
                     Value::Number(left) => Value::Number(left + expect_number(&right, *line)?),
@@ -109,4 +120,34 @@ pub fn evaluate(expr: &Expr) -> Result<Value, RuntimeError> {
             }
         }
     })
+}
+
+pub fn interpret_stmt(stmt: &Stmt, ctx: &mut Environment) -> Result<(), RuntimeError> {
+    match stmt {
+        Stmt::Print(e) => {
+            let val = evaluate(e, ctx)?;
+            println!("{}", val);
+        }
+        Stmt::Expr(e) => {
+            // This is just for possible side effects
+            evaluate(e, ctx)?;
+        }
+        Stmt::Var { name, initializer } => {
+            let val = if let Some(e) = initializer {
+                evaluate(e, ctx)?
+            } else {
+                Value::Nil
+            };
+            ctx.insert(name.into(), val);
+        }
+    }
+    Ok(())
+}
+
+pub fn interpret_program(program: &Program) -> Result<(), RuntimeError> {
+    let mut ctx = Environment::new();
+    for stmt in &program.stmts {
+        interpret_stmt(stmt, &mut ctx)?;
+    }
+    Ok(())
 }

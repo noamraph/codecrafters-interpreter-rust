@@ -6,8 +6,8 @@ pub mod interpreter;
 pub mod parser;
 pub mod tokenizer;
 
-use interpreter::evaluate;
-use parser::{parse_expr, parse_program, Stmt};
+use interpreter::{evaluate, interpret_program, Environment};
+use parser::{parse_expr, parse_program};
 use tokenizer::tokenize;
 
 fn cmd_tokenize(filename: &str) -> ExitCode {
@@ -50,7 +50,7 @@ fn cmd_evaluate(filename: &str) -> ExitCode {
     let Ok(expr) = parse_expr(&tokens) else {
         return ExitCode::from(65);
     };
-    let maybe_val = evaluate(&expr);
+    let maybe_val = evaluate(&expr, &Environment::new());
     match maybe_val {
         Ok(val) => {
             println!("{}", val);
@@ -72,30 +72,13 @@ fn cmd_run(filename: &str) -> ExitCode {
     let Ok(program) = parse_program(&tokens) else {
         return ExitCode::from(65);
     };
-    for stmt in program.stmts {
-        match stmt {
-            Stmt::Print(e) => {
-                let maybe_val = evaluate(&e);
-                match maybe_val {
-                    Ok(val) => {
-                        println!("{}", val);
-                    }
-                    Err(err) => {
-                        eprintln!("{}\n[line {}]", err.msg, err.line);
-                        return ExitCode::from(70);
-                    }
-                }
-            }
-            Stmt::Expr(e) => {
-                let maybe_val = evaluate(&e);
-                if let Err(err) = maybe_val {
-                    eprintln!("{}\n[line {}]", err.msg, err.line);
-                    return ExitCode::from(70);
-                }
-            }
-        }
+    let maybe_err = interpret_program(&program);
+    if let Err(err) = maybe_err {
+        eprintln!("{}\n[line {}]", err.msg, err.line);
+        ExitCode::from(70)
+    } else {
+        ExitCode::SUCCESS
     }
-    ExitCode::SUCCESS
 }
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
