@@ -49,7 +49,7 @@ fn expect_number(val: &Value, line: usize) -> Result<f64, RuntimeError> {
 
 pub type Environment = HashMap<String, Value>;
 
-pub fn evaluate(expr: &Expr, ctx: &Environment) -> Result<Value, RuntimeError> {
+pub fn evaluate(expr: &Expr, ctx: &mut Environment) -> Result<Value, RuntimeError> {
     Ok(match expr {
         Expr::Literal(_, literal) => match literal {
             Literal::Number(x) => Value::Number(*x),
@@ -117,6 +117,18 @@ pub fn evaluate(expr: &Expr, ctx: &Environment) -> Result<Value, RuntimeError> {
                 BinaryOperator::GreaterEqual => {
                     Value::Bool(expect_number(&left, *line)? >= expect_number(&right, *line)?)
                 }
+            }
+        }
+        Expr::Assign(line, assign) => {
+            if ctx.contains_key(&assign.name) {
+                let val = evaluate(&assign.rhs, ctx)?;
+                ctx.insert(assign.name.clone(), val.clone());
+                val
+            } else {
+                return Err(RuntimeError::new(
+                    *line,
+                    format!("Variable '{}' not declared before assignment", assign.name),
+                ));
             }
         }
     })

@@ -8,6 +8,7 @@ pub enum Expr {
     Unary(usize, Unary),
     Binary(usize, Binary),
     Grouping(usize, Grouping),
+    Assign(usize, Assign),
 }
 
 pub enum Literal {
@@ -51,6 +52,11 @@ pub enum BinaryOperator {
 
 pub struct Grouping(pub Box<Expr>);
 
+pub struct Assign {
+    pub name: String,
+    pub rhs: Box<Expr>,
+}
+
 pub enum Stmt {
     Expr(Expr),
     Print(Expr),
@@ -72,6 +78,7 @@ impl fmt::Display for Expr {
             Self::Unary(_, unary) => unary.fmt(f),
             Self::Binary(_, binary) => binary.fmt(f),
             Self::Grouping(_, grouping) => grouping.fmt(f),
+            Self::Assign(_, assign) => assign.fmt(f),
         }
     }
 }
@@ -138,6 +145,12 @@ impl fmt::Display for Grouping {
     }
 }
 
+impl fmt::Display for Assign {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(assign {} {})", self.name, self.rhs)
+    }
+}
+
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -196,24 +209,27 @@ impl Parser {
         self.peek().token_type == TokenType::Eof
     }
 
-    fn advance(&mut self) -> Result<&Token, ParseError> {
+    /// Advance. To get the eaten token, use self.previous()
+    fn advance(&mut self) -> Result<(), ParseError> {
         if self.is_at_end() {
             return Err(self.error(self.peek(), "Not expecting end of file"));
         }
         self.current += 1;
-        Ok(self.previous())
+        Ok(())
     }
 
-    fn check_advance(&mut self, token_type: TokenType) -> Option<&Token> {
+    /// Check, and advance if true. To get the eaten token, use self.previous()
+    fn check_advance(&mut self, token_type: TokenType) -> bool {
         if self.check(token_type) {
             self.current += 1;
-            Some(self.previous())
+            true
         } else {
-            None
+            false
         }
     }
 
-    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<&Token, ParseError> {
+    /// Consume a token. If it's not the next token, error.
+    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<(), ParseError> {
         if self.check(token_type) {
             Ok(self.advance()?)
         } else {
@@ -244,12 +260,10 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, ParseError> {
-        if self.check_advance(TokenType::Var).is_some() {
-            let name = self
-                .consume(TokenType::Identifier, "Expecting var name")?
-                .lexeme
-                .clone();
-            let initializer = if self.check_advance(TokenType::Equal).is_some() {
+        if self.check_advance(TokenType::Var) {
+            self.consume(TokenType::Identifier, "Expecting var name")?;
+            let name = self.previous().lexeme.clone();
+            let initializer = if self.check_advance(TokenType::Equal) {
                 Some(self.expression()?)
             } else {
                 None
@@ -275,7 +289,28 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr, ParseError> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expr, ParseError> {
+        let expr = self.equality()?;
+        if self.check_advance(TokenType::Equal) {
+            let equals = self.previous().clone();
+            let rhs = self.assignment()?;
+            if let Expr::Variable(line, Variable(name)) = expr {
+                Ok(Expr::Assign(
+                    line,
+                    Assign {
+                        name,
+                        rhs: Box::new(rhs),
+                    },
+                ))
+            } else {
+                Err(self.error(&equals, "Invalid assignment target"))
+            }
+        } else {
+            Ok(expr)
+        }
     }
 
     fn equality(&mut self) -> Result<Expr, ParseError> {
@@ -397,7 +432,8 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
-        let token = self.advance()?.clone();
+        self.advance()?;
+        let token = self.previous().clone();
         let expr = match token.token_type {
             TokenType::Identifier => Expr::Variable(token.line, Variable(token.lexeme)),
             TokenType::Number => {

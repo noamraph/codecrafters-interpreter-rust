@@ -50,7 +50,7 @@ fn cmd_evaluate(filename: &str) -> ExitCode {
     let Ok(expr) = parse_expr(&tokens) else {
         return ExitCode::from(65);
     };
-    let maybe_val = evaluate(&expr, &Environment::new());
+    let maybe_val = evaluate(&expr, &mut Environment::new());
     match maybe_val {
         Ok(val) => {
             println!("{}", val);
@@ -83,7 +83,7 @@ fn cmd_run(filename: &str) -> ExitCode {
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
-        eprintln!("Usage: {} tokenize <filename>", args[0]);
+        eprintln!("Usage: {} tokenize|parse|evaluate|run <filename>", args[0]);
         return ExitCode::FAILURE;
     }
 
