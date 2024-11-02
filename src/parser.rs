@@ -75,6 +75,10 @@ pub enum Stmt {
         else_branch: Option<Box<Stmt>>,
     },
     Print(Expr),
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
+    },
     Var {
         name: String,
         initializer: Option<Expr>,
@@ -212,6 +216,9 @@ impl fmt::Display for Stmt {
                 } else {
                     writeln!(f, "(if {} {})", condition, then_branch)
                 }
+            }
+            Stmt::While { condition, body } => {
+                writeln!(f, "(while {} {})", condition, body)
             }
         }
     }
@@ -351,6 +358,12 @@ impl Parser {
                 then_branch,
                 else_branch,
             })
+        } else if self.check_advance(TokenType::While) {
+            self.consume(TokenType::LeftParen, "Expecting '('")?;
+            let condition = self.expression()?;
+            self.consume(TokenType::RightParen, "Expecting ')'")?;
+            let body = Box::new(self.stmt()?);
+            Ok(Stmt::While { condition, body })
         } else {
             let expr = self.expression()?;
             self.consume(TokenType::Semicolon, "Expecting `;`")?;

@@ -210,6 +210,13 @@ pub fn interpret_stmt(stmt: &Stmt, ctx: &mut Environment) -> Result<(), RuntimeE
                 interpret_stmt(else_branch, ctx)?;
             }
         }
+        Stmt::While { condition, body } => loop {
+            let val = evaluate(condition, ctx)?;
+            if !to_bool(&val) {
+                break;
+            }
+            interpret_stmt(body, ctx)?;
+        },
         Stmt::Var { name, initializer } => {
             let val = if let Some(e) = initializer {
                 evaluate(e, ctx)?
