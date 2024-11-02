@@ -7,6 +7,7 @@ pub enum Expr {
     Variable(usize, Variable),
     Unary(usize, Unary),
     Binary(usize, Binary),
+    Logical(usize, Logical),
     Grouping(usize, Grouping),
     Assign(usize, Assign),
 }
@@ -49,7 +50,16 @@ pub enum BinaryOperator {
     Mul,
     Div,
 }
+pub struct Logical {
+    pub left: Box<Expr>,
+    pub op: LogicalOperator,
+    pub right: Box<Expr>,
+}
 
+pub enum LogicalOperator {
+    And,
+    Or,
+}
 pub struct Grouping(pub Box<Expr>);
 
 pub struct Assign {
@@ -83,6 +93,7 @@ impl fmt::Display for Expr {
             Self::Variable(_, variable) => variable.fmt(f),
             Self::Unary(_, unary) => unary.fmt(f),
             Self::Binary(_, binary) => binary.fmt(f),
+            Self::Logical(_, logical) => logical.fmt(f),
             Self::Grouping(_, grouping) => grouping.fmt(f),
             Self::Assign(_, assign) => assign.fmt(f),
         }
@@ -140,6 +151,21 @@ impl fmt::Display for BinaryOperator {
 }
 
 impl fmt::Display for Binary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} {} {})", self.op, self.left, self.right)
+    }
+}
+
+impl fmt::Display for LogicalOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::And => write!(f, "and"),
+            Self::Or => write!(f, "or"),
+        }
+    }
+}
+
+impl fmt::Display for Logical {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {} {})", self.op, self.left, self.right)
     }
@@ -337,7 +363,7 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr, ParseError> {
-        let expr = self.equality()?;
+        let expr = self.logic_or()?;
         if self.check_advance(TokenType::Equal) {
             let equals = self.previous().clone();
             let rhs = self.assignment()?;
@@ -357,6 +383,46 @@ impl Parser {
         }
     }
 
+    fn logic_or(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.logic_and()?;
+
+        loop {
+            if self.check_advance(TokenType::Or) {
+                let right = self.logic_and()?;
+                expr = Expr::Logical(
+                    self.line(),
+                    Logical {
+                        left: Box::new(expr),
+                        op: LogicalOperator::Or,
+                        right: Box::new(right),
+                    },
+                );
+            } else {
+                return Ok(expr);
+            }
+        }
+    }
+
+    fn logic_and(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.equality()?;
+
+        loop {
+            if self.check_advance(TokenType::And) {
+                let right = self.equality()?;
+                expr = Expr::Logical(
+                    self.line(),
+                    Logical {
+                        left: Box::new(expr),
+                        op: LogicalOperator::And,
+                        right: Box::new(right),
+                    },
+                );
+            } else {
+                return Ok(expr);
+            }
+        }
+    }
+
     fn equality(&mut self) -> Result<Expr, ParseError> {
         let mut expr = self.comparison()?;
 
@@ -364,7 +430,7 @@ impl Parser {
             let op = match self.peek().token_type {
                 TokenType::BangEqual => BinaryOperator::NotEqual,
                 TokenType::EqualEqual => BinaryOperator::Equal,
-                _ => break,
+                _ => return Ok(expr),
             };
             self.advance()?;
             let right = self.comparison()?;
@@ -377,8 +443,6 @@ impl Parser {
                 },
             );
         }
-
-        Ok(expr)
     }
 
     fn comparison(&mut self) -> Result<Expr, ParseError> {
@@ -390,7 +454,7 @@ impl Parser {
                 TokenType::GreaterEqual => BinaryOperator::GreaterEqual,
                 TokenType::Less => BinaryOperator::Less,
                 TokenType::LessEqual => BinaryOperator::LessEqual,
-                _ => break,
+                _ => return Ok(expr),
             };
             self.advance()?;
             let right = self.term()?;
@@ -403,8 +467,6 @@ impl Parser {
                 },
             )
         }
-
-        Ok(expr)
     }
 
     fn term(&mut self) -> Result<Expr, ParseError> {
@@ -414,7 +476,7 @@ impl Parser {
             let op = match self.peek().token_type {
                 TokenType::Minus => BinaryOperator::Sub,
                 TokenType::Plus => BinaryOperator::Add,
-                _ => break,
+                _ => return Ok(expr),
             };
             self.advance()?;
             let right = self.factor()?;
@@ -427,8 +489,6 @@ impl Parser {
                 },
             )
         }
-
-        Ok(expr)
     }
 
     fn factor(&mut self) -> Result<Expr, ParseError> {
@@ -438,7 +498,7 @@ impl Parser {
             let op = match self.peek().token_type {
                 TokenType::Slash => BinaryOperator::Div,
                 TokenType::Star => BinaryOperator::Mul,
-                _ => break,
+                _ => return Ok(expr),
             };
             self.advance()?;
             let right = self.unary()?;
@@ -451,8 +511,6 @@ impl Parser {
                 },
             )
         }
-
-        Ok(expr)
     }
 
     fn unary(&mut self) -> Result<Expr, ParseError> {

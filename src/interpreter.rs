@@ -1,6 +1,8 @@
 use std::{collections::HashMap, fmt};
 
-use crate::parser::{BinaryOperator, Expr, Literal, Program, Stmt, UnaryOperator, Variable};
+use crate::parser::{
+    BinaryOperator, Expr, Literal, LogicalOperator, Program, Stmt, UnaryOperator, Variable,
+};
 
 #[derive(PartialEq, Clone)]
 pub enum Value {
@@ -157,6 +159,19 @@ pub fn evaluate(expr: &Expr, ctx: &mut Environment) -> Result<Value, RuntimeErro
                 BinaryOperator::GreaterEqual => {
                     Value::Bool(expect_number(&left, *line)? >= expect_number(&right, *line)?)
                 }
+            }
+        }
+        Expr::Logical(_line, logical) => {
+            let left = evaluate(&logical.left, ctx)?;
+            let left_as_bool = to_bool(&left);
+            let eval_right = match logical.op {
+                LogicalOperator::And => left_as_bool,
+                LogicalOperator::Or => !left_as_bool,
+            };
+            if eval_right {
+                evaluate(&logical.right, ctx)?
+            } else {
+                left
             }
         }
         Expr::Assign(line, assign) => {
