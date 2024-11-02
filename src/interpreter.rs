@@ -47,7 +47,47 @@ fn expect_number(val: &Value, line: usize) -> Result<f64, RuntimeError> {
     }
 }
 
-pub type Environment = HashMap<String, Value>;
+pub struct Environment {
+    /// We hold a stack of scopes. The most local is the last
+    scopes: Vec<HashMap<String, Value>>,
+}
+
+impl Environment {
+    fn get(&self, name: &String) -> Option<Value> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(val) = scope.get(name) {
+                return Some(val.clone());
+            }
+        }
+        None
+    }
+
+    fn set(&mut self, name: &String, val: &Value) -> bool {
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.contains_key(name) {
+                scope.insert(name.clone(), val.clone());
+                return true;
+            }
+        }
+        false
+    }
+
+    fn push(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    fn pop(&mut self) {
+        self.scopes.pop();
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Environment {
+            scopes: Vec::<_>::from([HashMap::<_, _>::new()]),
+        }
+    }
+}
 
 pub fn evaluate(expr: &Expr, ctx: &mut Environment) -> Result<Value, RuntimeError> {
     Ok(match expr {
@@ -120,16 +160,15 @@ pub fn evaluate(expr: &Expr, ctx: &mut Environment) -> Result<Value, RuntimeErro
             }
         }
         Expr::Assign(line, assign) => {
-            if ctx.contains_key(&assign.name) {
-                let val = evaluate(&assign.rhs, ctx)?;
-                ctx.insert(assign.name.clone(), val.clone());
-                val
-            } else {
+            let val = evaluate(&assign.rhs, ctx)?;
+            let is_ok = ctx.set(&assign.name, &val);
+            if !is_ok {
                 return Err(RuntimeError::new(
                     *line,
                     format!("Variable '{}' not declared before assignment", assign.name),
                 ));
             }
+            val
         }
     })
 }
@@ -150,14 +189,22 @@ pub fn interpret_stmt(stmt: &Stmt, ctx: &mut Environment) -> Result<(), RuntimeE
             } else {
                 Value::Nil
             };
-            ctx.insert(name.into(), val);
+            let n_scopes = ctx.scopes.len();
+            ctx.scopes[n_scopes - 1].insert(name.into(), val);
+        }
+        Stmt::Block(stmts) => {
+            ctx.push();
+            for stmt in stmts {
+                interpret_stmt(stmt, ctx)?;
+            }
+            ctx.pop();
         }
     }
     Ok(())
 }
 
 pub fn interpret_program(program: &Program) -> Result<(), RuntimeError> {
-    let mut ctx = Environment::new();
+    let mut ctx = Environment::default();
     for stmt in &program.stmts {
         interpret_stmt(stmt, &mut ctx)?;
     }

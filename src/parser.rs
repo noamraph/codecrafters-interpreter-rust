@@ -64,6 +64,7 @@ pub enum Stmt {
         name: String,
         initializer: Option<Expr>,
     },
+    Block(Vec<Stmt>),
 }
 
 pub struct Program {
@@ -162,6 +163,13 @@ impl fmt::Display for Stmt {
                 } else {
                     write!(f, "(var {})", name)
                 }
+            }
+            Stmt::Block(stmts) => {
+                writeln!(f, "(block")?;
+                for stmt in stmts {
+                    writeln!(f, "  {}", stmt)?;
+                }
+                writeln!(f, ")")
             }
         }
     }
@@ -276,11 +284,16 @@ impl Parser {
     }
 
     fn stmt(&mut self) -> Result<Stmt, ParseError> {
-        if self.check(TokenType::Print) {
-            self.advance()?;
+        if self.check_advance(TokenType::Print) {
             let expr = self.expression()?;
             self.consume(TokenType::Semicolon, "Expecting `;`")?;
             Ok(Stmt::Print(expr))
+        } else if self.check_advance(TokenType::LeftBrace) {
+            let mut stmts = Vec::<Stmt>::new();
+            while !self.check_advance(TokenType::RightBrace) {
+                stmts.push(self.declaration()?);
+            }
+            Ok(Stmt::Block(stmts))
         } else {
             let expr = self.expression()?;
             self.consume(TokenType::Semicolon, "Expecting `;`")?;

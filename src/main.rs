@@ -50,7 +50,7 @@ fn cmd_evaluate(filename: &str) -> ExitCode {
     let Ok(expr) = parse_expr(&tokens) else {
         return ExitCode::from(65);
     };
-    let maybe_val = evaluate(&expr, &mut Environment::new());
+    let maybe_val = evaluate(&expr, &mut Environment::default());
     match maybe_val {
         Ok(val) => {
             println!("{}", val);
