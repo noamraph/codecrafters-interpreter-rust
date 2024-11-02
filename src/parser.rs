@@ -59,6 +59,11 @@ pub struct Assign {
 
 pub enum Stmt {
     Expr(Expr),
+    IfStmt {
+        condition: Expr,
+        then_branch: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
+    },
     Print(Expr),
     Var {
         name: String,
@@ -170,6 +175,17 @@ impl fmt::Display for Stmt {
                     writeln!(f, "  {}", stmt)?;
                 }
                 writeln!(f, ")")
+            }
+            Stmt::IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                if let Some(else_branch) = else_branch {
+                    writeln!(f, "(if {} {} {})", condition, then_branch, else_branch)
+                } else {
+                    writeln!(f, "(if {} {})", condition, then_branch)
+                }
             }
         }
     }
@@ -294,6 +310,21 @@ impl Parser {
                 stmts.push(self.declaration()?);
             }
             Ok(Stmt::Block(stmts))
+        } else if self.check_advance(TokenType::If) {
+            self.consume(TokenType::LeftParen, "Expecting '('")?;
+            let condition = self.expression()?;
+            self.consume(TokenType::RightParen, "Expecting ')'")?;
+            let then_branch = Box::new(self.stmt()?);
+            let else_branch = if self.check_advance(TokenType::Else) {
+                Some(Box::new(self.stmt()?))
+            } else {
+                None
+            };
+            Ok(Stmt::IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            })
         } else {
             let expr = self.expression()?;
             self.consume(TokenType::Semicolon, "Expecting `;`")?;

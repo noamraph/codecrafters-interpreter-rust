@@ -183,6 +183,18 @@ pub fn interpret_stmt(stmt: &Stmt, ctx: &mut Environment) -> Result<(), RuntimeE
             // This is just for possible side effects
             evaluate(e, ctx)?;
         }
+        Stmt::IfStmt {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            let val = evaluate(condition, ctx)?;
+            if to_bool(&val) {
+                interpret_stmt(then_branch, ctx)?;
+            } else if let Some(else_branch) = else_branch {
+                interpret_stmt(else_branch, ctx)?;
+            }
+        }
         Stmt::Var { name, initializer } => {
             let val = if let Some(e) = initializer {
                 evaluate(e, ctx)?
