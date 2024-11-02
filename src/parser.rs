@@ -187,6 +187,10 @@ impl fmt::Display for Assign {
     }
 }
 
+fn indent(s: String) -> String {
+    format!("  {}", s.replace("\n", "\n  "))
+}
+
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -202,7 +206,7 @@ impl fmt::Display for Stmt {
             Stmt::Block(stmts) => {
                 writeln!(f, "(block")?;
                 for stmt in stmts {
-                    writeln!(f, "  {}", stmt)?;
+                    writeln!(f, "{}", indent(format!("{}", stmt)))?;
                 }
                 writeln!(f, ")")
             }
@@ -228,7 +232,7 @@ impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "(")?;
         for stmt in &self.stmts {
-            writeln!(f, "  {}", stmt)?;
+            writeln!(f, "{}", indent(format!("{}", stmt)))?;
         }
         writeln!(f, ")")
     }
@@ -334,41 +338,109 @@ impl Parser {
 
     fn stmt(&mut self) -> Result<Stmt, ParseError> {
         if self.check_advance(TokenType::Print) {
-            let expr = self.expression()?;
-            self.consume(TokenType::Semicolon, "Expecting `;`")?;
-            Ok(Stmt::Print(expr))
+            self.print_statement()
         } else if self.check_advance(TokenType::LeftBrace) {
-            let mut stmts = Vec::<Stmt>::new();
-            while !self.check_advance(TokenType::RightBrace) {
-                stmts.push(self.declaration()?);
-            }
-            Ok(Stmt::Block(stmts))
+            self.block_statement()
         } else if self.check_advance(TokenType::If) {
-            self.consume(TokenType::LeftParen, "Expecting '('")?;
-            let condition = self.expression()?;
-            self.consume(TokenType::RightParen, "Expecting ')'")?;
-            let then_branch = Box::new(self.stmt()?);
-            let else_branch = if self.check_advance(TokenType::Else) {
-                Some(Box::new(self.stmt()?))
-            } else {
-                None
-            };
-            Ok(Stmt::IfStmt {
-                condition,
-                then_branch,
-                else_branch,
-            })
+            self.if_statement()
         } else if self.check_advance(TokenType::While) {
-            self.consume(TokenType::LeftParen, "Expecting '('")?;
-            let condition = self.expression()?;
-            self.consume(TokenType::RightParen, "Expecting ')'")?;
-            let body = Box::new(self.stmt()?);
-            Ok(Stmt::While { condition, body })
+            self.while_statement()
+        } else if self.check_advance(TokenType::For) {
+            self.for_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt, ParseError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expecting `;`")?;
+        Ok(Stmt::Print(expr))
+    }
+
+    fn block_statement(&mut self) -> Result<Stmt, ParseError> {
+        let mut stmts = Vec::<Stmt>::new();
+        while !self.check_advance(TokenType::RightBrace) {
+            stmts.push(self.declaration()?);
+        }
+        Ok(Stmt::Block(stmts))
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt, ParseError> {
+        self.consume(TokenType::LeftParen, "Expecting '('")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expecting ')'")?;
+        let then_branch = Box::new(self.stmt()?);
+        let else_branch = if self.check_advance(TokenType::Else) {
+            Some(Box::new(self.stmt()?))
+        } else {
+            None
+        };
+        Ok(Stmt::IfStmt {
+            condition,
+            then_branch,
+            else_branch,
+        })
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, ParseError> {
+        self.consume(TokenType::LeftParen, "Expecting '('")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expecting ')'")?;
+        let body = Box::new(self.stmt()?);
+        Ok(Stmt::While { condition, body })
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt, ParseError> {
+        let line = self.line();
+        self.consume(TokenType::LeftParen, "Expecting '('")?;
+        let initializer = if self.check_advance(TokenType::Semicolon) {
+            None
+        } else if self.check(TokenType::Var) {
+            Some(self.declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+        let condition = if self.check_advance(TokenType::Semicolon) {
+            None
         } else {
             let expr = self.expression()?;
-            self.consume(TokenType::Semicolon, "Expecting `;`")?;
-            Ok(Stmt::Expr(expr))
+            self.consume(TokenType::Semicolon, "Expecting ';'")?;
+            Some(expr)
+        };
+        let increment = if self.check_advance(TokenType::RightParen) {
+            None
+        } else {
+            let expr = self.expression()?;
+            self.consume(TokenType::RightParen, "Expecting ')'")?;
+            Some(expr)
+        };
+        let mut body = self.stmt()?;
+
+        // Desugar the if into a while
+        if let Some(increment) = increment {
+            body = Stmt::Block(vec![body, Stmt::Expr(increment)]);
         }
+        let condition = if let Some(condition) = condition {
+            condition
+        } else {
+            Expr::Literal(line, Literal::True)
+        };
+        body = Stmt::While {
+            condition,
+            body: Box::new(body),
+        };
+        if let Some(initializer) = initializer {
+            body = Stmt::Block(vec![initializer, body]);
+        }
+
+        Ok(body)
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt, ParseError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expecting `;`")?;
+        Ok(Stmt::Expr(expr))
     }
 
     fn expression(&mut self) -> Result<Expr, ParseError> {

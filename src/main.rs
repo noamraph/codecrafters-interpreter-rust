@@ -41,6 +41,19 @@ fn cmd_parse(filename: &str) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn cmd_parse_program(filename: &str) -> ExitCode {
+    let file_contents = fs::read_to_string(filename).unwrap();
+    let (tokens, had_error) = tokenize(&file_contents);
+    if had_error {
+        return ExitCode::from(65);
+    }
+    let Ok(expr) = parse_program(&tokens) else {
+        return ExitCode::from(65);
+    };
+    println!("{}", expr);
+    ExitCode::SUCCESS
+}
+
 fn cmd_evaluate(filename: &str) -> ExitCode {
     let file_contents = fs::read_to_string(filename).unwrap();
     let (tokens, had_error) = tokenize(&file_contents);
@@ -93,6 +106,7 @@ fn main() -> ExitCode {
     match command.as_str() {
         "tokenize" => cmd_tokenize(filename),
         "parse" => cmd_parse(filename),
+        "parse-program" => cmd_parse_program(filename),
         "evaluate" => cmd_evaluate(filename),
         "run" => cmd_run(filename),
         _ => {
